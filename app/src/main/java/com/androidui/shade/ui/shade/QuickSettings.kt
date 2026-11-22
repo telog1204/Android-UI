@@ -65,6 +65,10 @@ import com.androidui.shade.qs.TileState
 private val TileHeight = 72.dp
 private val TileSpacing = 8.dp
 private const val TILES_PER_PAGE = 8
+private const val ROWS_PER_PAGE = TILES_PER_PAGE / 2
+
+/** タイルの欄の高さ（どのページでも4段分で固定し、下のボタンの位置を変えない） */
+private val PageHeight = TileHeight * ROWS_PER_PAGE + TileSpacing * (ROWS_PER_PAGE - 1)
 
 /** 1回目のスワイプで表示する、通知の上の4つのタイル */
 @Composable
@@ -102,7 +106,9 @@ fun FullQuickSettings(
         )
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(PageHeight),
             pageSpacing = 16.dp,
             verticalAlignment = Alignment.Top,
         ) { page ->
