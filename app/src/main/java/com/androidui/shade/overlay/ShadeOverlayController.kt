@@ -2,6 +2,7 @@ package com.androidui.shade.overlay
 
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
+import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
@@ -74,11 +75,14 @@ class ShadeOverlayController(
         },
         onAction = { n, action ->
             if (action.remoteInputs.isNotEmpty()) {
+                // 返信はキーボードがパネルの裏に隠れるため、パネルを閉じて入力画面を開く
                 service.startActivitySafely(ReplyActivity.createIntent(service, action, n.title.ifEmpty { n.appName }))
+                state.close()
             } else {
                 NotificationActions.send(service, action.intent)
+                // 画面を開くボタンのときだけ閉じる（その場で済む操作では開いたままにする）
+                if (opensActivity(action.intent)) state.close()
             }
-            state.close()
         },
         onDismiss = { n -> NotificationRepository.dismiss(n.key) },
         onClearAll = { NotificationRepository.dismissAll() },
@@ -305,6 +309,10 @@ class ShadeOverlayController(
     }
 
     // ---- 共通 ----
+
+    /** ボタンが画面を開くものか（Android 12未満は判定できないため、閉じる側に倒す） */
+    private fun opensActivity(intent: PendingIntent): Boolean =
+        if (Build.VERSION.SDK_INT >= 31) intent.isActivity else true
 
     private fun baseParams(width: Int, height: Int, focusable: Boolean) = WindowManager.LayoutParams(
         width,
