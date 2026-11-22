@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -52,6 +55,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.androidui.shade.notification.NotificationRepository
 import com.androidui.shade.overlay.ShadeState
+import com.androidui.shade.qs.QuickSettingsController
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -62,17 +66,22 @@ import java.util.Locale
 fun ShadePanel(
     state: ShadeState,
     actions: ShadePanelActions,
+    quickSettings: QuickSettingsController,
     topInset: Dp,
     bottomInset: Dp,
 ) {
     val items by NotificationRepository.items.collectAsState()
     val connected by NotificationRepository.connected.collectAsState()
+    val tiles by quickSettings.tiles.collectAsState()
+    val brightness by quickSettings.brightness.collectAsState()
     val scheme = MaterialTheme.colorScheme
     val dark = isSystemInDarkTheme()
     val scrimColor = scheme.surfaceContainer
     val cardColor = if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainerLowest
     val nestedScroll = remember(state) { ShadeNestedScrollConnection(state) }
-    val dragState = rememberDraggableState { delta -> state.dragBy(delta) }
+    val router = remember(state) { PanelDragRouter(state) }
+    val dragState = rememberDraggableState { delta -> router.onDelta(delta) }
+    val showFullQs by remember(state) { derivedStateOf { state.qsExpansion > 0f } }
 
     Box(
         Modifier
@@ -82,8 +91,8 @@ fun ShadePanel(
             .draggable(
                 state = dragState,
                 orientation = Orientation.Vertical,
-                onDragStarted = { state.startDrag() },
-                onDragStopped = { velocity -> state.settle(velocity) },
+                onDragStarted = { position -> router.onStart(position.y) },
+                onDragStopped = { velocity -> router.onStop(velocity) },
             )
             .pointerInput(state) { detectTapGestures(onTap = { state.close() }) },
     ) {
@@ -98,37 +107,76 @@ fun ShadePanel(
                 .padding(top = topInset, bottom = bottomInset),
         ) {
             ShadeHeader()
-            LazyColumn(
-                modifier = Modifier
+            Box(
+                Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                when {
-                    !connected -> item(key = "not_connected") {
-                        Message("通知へのアクセスが許可されていません。\nアプリを開いて設定してください。")
-                    }
-
-                    items.isEmpty() -> item(key = "empty") { Message("通知はありません") }
-                }
-                itemsIndexed(items, key = { _, n -> n.key }) { index, notification ->
-                    NotificationCard(
-                        notification = notification,
-                        shape = stackShape(index, items.size),
-                        color = cardColor,
-                        actions = actions,
-                        modifier = Modifier.animateItem(),
+                // 1段目：4つのタイルと通知
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = 1f - state.qsExpansion
+                            translationY = state.qsExpansion * state.qsDistancePx * 0.5f
+                        },
+                ) {
+                    QuickQuickSettings(
+                        tiles = tiles,
+                        controller = quickSettings,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { router.qsRegionBottomPx = it.boundsInRoot().bottom },
                     )
-                }
-                if (connected) {
-                    item(key = "footer") {
-                        ShadeFooter(
-                            showClearAll = items.any { it.clearable },
-                            color = cardColor,
-                            actions = actions,
-                        )
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        when {
+                            !connected -> item(key = "not_connected") {
+                                Message("通知へのアクセスが許可されていません。\nアプリを開いて設定してください。")
+                            }
+
+                            items.isEmpty() -> item(key = "empty") { Message("通知はありません") }
+                        }
+                        itemsIndexed(items, key = { _, n -> n.key }) { index, notification ->
+                            NotificationCard(
+                                notification = notification,
+                                shape = stackShape(index, items.size),
+                                color = cardColor,
+                                actions = actions,
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                        if (connected) {
+                            item(key = "footer") {
+                                ShadeFooter(
+                                    showClearAll = items.any { it.clearable },
+                                    color = cardColor,
+                                    actions = actions,
+                                )
+                            }
+                        }
                     }
+                }
+                // 2段目：全画面のクイック設定
+                if (showFullQs) {
+                    FullQuickSettings(
+                        tiles = tiles,
+                        brightness = brightness,
+                        controller = quickSettings,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                alpha = state.qsExpansion
+                                translationY = -(1f - state.qsExpansion) * state.qsDistancePx * 0.5f
+                            }
+                            // 下にある通知に触れないようにする
+                            .pointerInput(Unit) {},
+                    )
                 }
             }
             DragHandle()
@@ -224,13 +272,59 @@ private fun stackShape(index: Int, count: Int, outer: Dp = 24.dp, inner: Dp = 6.
 }
 
 /**
- * 一覧を最後までスクロールしたあとに上へドラッグするとパネルを閉じる。
- * 途中まで閉じた状態で下へドラッグすると開き直す。
+ * パネル上のドラッグを「パネル全体の開閉」と「クイック設定の展開」に振り分ける。
+ * 全開のときに、時計とタイルの部分を下へ引くとクイック設定を広げる。
+ */
+private class PanelDragRouter(private val state: ShadeState) {
+    private enum class Mode { UNDECIDED, PANEL, QS }
+
+    /** 時計と4つのタイルの部分の下端（この位置より上で下へ引くとクイック設定を広げる） */
+    var qsRegionBottomPx = 0f
+
+    private var startY = 0f
+    private var mode = Mode.UNDECIDED
+
+    fun onStart(y: Float) {
+        startY = y
+        mode = Mode.UNDECIDED
+    }
+
+    fun onDelta(delta: Float) {
+        if (mode == Mode.UNDECIDED) {
+            mode = when {
+                state.qsExpansion > 0f -> Mode.QS
+                state.expansion >= 1f && delta > 0f && startY <= qsRegionBottomPx -> Mode.QS
+                else -> Mode.PANEL
+            }
+        }
+        if (mode == Mode.QS) state.qsDragBy(delta) else state.dragBy(delta)
+    }
+
+    fun onStop(velocity: Float) {
+        when (mode) {
+            Mode.QS -> state.qsSettle(velocity)
+            Mode.PANEL -> state.settle(velocity)
+            Mode.UNDECIDED -> Unit
+        }
+        mode = Mode.UNDECIDED
+    }
+}
+
+/**
+ * 通知一覧のスクロールと連動させる。
+ * - 最後までスクロールしたあとに上へドラッグ：パネルを閉じる
+ * - 一番上で下へドラッグ：クイック設定を広げる
+ * - 途中まで閉じた状態で下へドラッグ：開き直す
  */
 private class ShadeNestedScrollConnection(private val state: ShadeState) : NestedScrollConnection {
 
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-        if (source == NestedScrollSource.UserInput && available.y > 0f && state.expansion < 1f) {
+        if (source != NestedScrollSource.UserInput) return Offset.Zero
+        if (state.qsExpansion > 0f && state.qsExpansion < 1f) {
+            state.qsDragBy(available.y)
+            return Offset(0f, available.y)
+        }
+        if (available.y > 0f && state.expansion < 1f) {
             state.dragBy(available.y)
             return Offset(0f, available.y)
         }
@@ -238,14 +332,23 @@ private class ShadeNestedScrollConnection(private val state: ShadeState) : Neste
     }
 
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-        if (source == NestedScrollSource.UserInput && available.y < 0f) {
+        if (source != NestedScrollSource.UserInput) return Offset.Zero
+        if (available.y < 0f) {
             state.dragBy(available.y)
+            return Offset(0f, available.y)
+        }
+        if (available.y > 0f && state.expansion >= 1f) {
+            state.qsDragBy(available.y)
             return Offset(0f, available.y)
         }
         return Offset.Zero
     }
 
     override suspend fun onPreFling(available: Velocity): Velocity {
+        if (state.qsExpansion > 0f && state.qsExpansion < 1f) {
+            state.qsSettle(available.y)
+            return available
+        }
         if (state.expansion < 1f) {
             state.settle(available.y)
             return available

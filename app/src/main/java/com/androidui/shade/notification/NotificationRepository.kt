@@ -38,6 +38,12 @@ object NotificationRepository {
         runCatching { listener?.cancelNotification(key) }
     }
 
+    /** サイレント（通知の制限）を切り替える。通知リスナーが使えない場合は false */
+    fun requestInterruptionFilter(filter: Int): Boolean {
+        val service = listener ?: return false
+        return runCatching { service.requestInterruptionFilter(filter) }.isSuccess
+    }
+
     /** 消去できる通知をすべて消去する */
     fun dismissAll() {
         _items.update { list -> list.filterNot { it.clearable } }

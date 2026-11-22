@@ -37,7 +37,7 @@ class ShadeAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         val shadePrefs = ShadePrefs(this)
         prefs = shadePrefs
-        controller = ShadeOverlayController(this, shadePrefs).also { it.applySettings() }
+        controller = ShadeOverlayController(this, shadePrefs).also { it.start() }
         shadePrefs.registerListener(prefListener)
         ContextCompat.registerReceiver(
             this,
