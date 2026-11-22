@@ -17,3 +17,25 @@ Thumbs.db
 
 # Claude Codeの個人用設定
 .claude/settings.local.json
+
+# Android Studio / Gradle
+.gradle/
+build/
+/captures/
+local.properties
+*.iml
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+output-metadata.json
+
+# Kotlin
+.kotlin/
+
+# 署名鍵
+*.jks
+*.keystore
