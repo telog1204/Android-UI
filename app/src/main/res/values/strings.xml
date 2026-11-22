@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AndroidUI 通知パネル</string>
+    <string name="accessibility_description">画面上端からの下スワイプを検知し、Android 15風の通知パネルを表示するために使用します。画面の内容は読み取りません。</string>
+</resources>
