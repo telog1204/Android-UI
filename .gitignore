@@ -39,3 +39,6 @@ output-metadata.json
 # 署名鍵
 *.jks
 *.keystore
+
+# GitHub Actions で同じ鍵で署名するためのデバッグ鍵（公開しても問題のない開発用）
+!app/debug.keystore

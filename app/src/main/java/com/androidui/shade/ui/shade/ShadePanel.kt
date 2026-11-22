@@ -1,0 +1,255 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
+package com.androidui.shade.ui.shade
+
+import android.text.format.DateFormat
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
+import com.androidui.shade.notification.NotificationRepository
+import com.androidui.shade.overlay.ShadeState
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/** Android 15風の通知パネル全体 */
+@Composable
+fun ShadePanel(
+    state: ShadeState,
+    actions: ShadePanelActions,
+    topInset: Dp,
+    bottomInset: Dp,
+) {
+    val items by NotificationRepository.items.collectAsState()
+    val connected by NotificationRepository.connected.collectAsState()
+    val scheme = MaterialTheme.colorScheme
+    val dark = isSystemInDarkTheme()
+    val scrimColor = scheme.surfaceContainer
+    val cardColor = if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainerLowest
+    val nestedScroll = remember(state) { ShadeNestedScrollConnection(state) }
+    val dragState = rememberDraggableState { delta -> state.dragBy(delta) }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .drawBehind { drawRect(scrimColor, alpha = 0.85f * state.expansion) }
+            .nestedScroll(nestedScroll)
+            .draggable(
+                state = dragState,
+                orientation = Orientation.Vertical,
+                onDragStarted = { state.startDrag() },
+                onDragStopped = { velocity -> state.settle(velocity) },
+            )
+            .pointerInput(state) { detectTapGestures(onTap = { state.close() }) },
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    // 指の動きに合わせて上から下りてくる
+                    translationY = -(1f - state.expansion) * state.openDistancePx
+                    alpha = state.expansion
+                }
+                .padding(top = topInset, bottom = bottomInset),
+        ) {
+            ShadeHeader()
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                when {
+                    !connected -> item(key = "not_connected") {
+                        Message("通知へのアクセスが許可されていません。\nアプリを開いて設定してください。")
+                    }
+
+                    items.isEmpty() -> item(key = "empty") { Message("通知はありません") }
+                }
+                itemsIndexed(items, key = { _, n -> n.key }) { index, notification ->
+                    NotificationCard(
+                        notification = notification,
+                        shape = stackShape(index, items.size),
+                        color = cardColor,
+                        actions = actions,
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+                if (connected) {
+                    item(key = "footer") {
+                        ShadeFooter(
+                            showClearAll = items.any { it.clearable },
+                            color = cardColor,
+                            actions = actions,
+                        )
+                    }
+                }
+            }
+            DragHandle()
+        }
+    }
+}
+
+/** 時計と日付 */
+@Composable
+private fun ShadeHeader() {
+    val context = LocalContext.current
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L - System.currentTimeMillis() % 60_000L)
+            now = System.currentTimeMillis()
+        }
+    }
+    val time = remember(now) { DateFormat.getTimeFormat(context).format(Date(now)) }
+    val date = remember(now) {
+        val pattern = DateFormat.getBestDateTimePattern(Locale.getDefault(), "MMMdEEE")
+        SimpleDateFormat(pattern, Locale.getDefault()).format(Date(now))
+    }
+    Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 16.dp)) {
+        Text(time, style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onSurface)
+        Text(date, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun Message(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp),
+        textAlign = TextAlign.Center,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** 「管理」「すべて消去」ボタン */
+@Composable
+private fun ShadeFooter(showClearAll: Boolean, color: Color, actions: ShadePanelActions) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PillButton("管理", color, actions.onManage)
+        Spacer(Modifier.weight(1f))
+        if (showClearAll) PillButton("すべて消去", color, actions.onClearAll)
+    }
+}
+
+@Composable
+private fun PillButton(label: String, color: Color, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(50), color = color) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/** 下端のつまみ（上にドラッグして閉じる） */
+@Composable
+private fun DragHandle() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(width = 36.dp, height = 4.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)),
+        )
+    }
+}
+
+/** 通知を重ねたときの角の丸み（両端は大きく、間は小さく） */
+private fun stackShape(index: Int, count: Int, outer: Dp = 24.dp, inner: Dp = 6.dp): RoundedCornerShape {
+    val top = if (index == 0) outer else inner
+    val bottom = if (index == count - 1) outer else inner
+    return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
+}
+
+/**
+ * 一覧を最後までスクロールしたあとに上へドラッグするとパネルを閉じる。
+ * 途中まで閉じた状態で下へドラッグすると開き直す。
+ */
+private class ShadeNestedScrollConnection(private val state: ShadeState) : NestedScrollConnection {
+
+    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        if (source == NestedScrollSource.UserInput && available.y > 0f && state.expansion < 1f) {
+            state.dragBy(available.y)
+            return Offset(0f, available.y)
+        }
+        return Offset.Zero
+    }
+
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+        if (source == NestedScrollSource.UserInput && available.y < 0f) {
+            state.dragBy(available.y)
+            return Offset(0f, available.y)
+        }
+        return Offset.Zero
+    }
+
+    override suspend fun onPreFling(available: Velocity): Velocity {
+        if (state.expansion < 1f) {
+            state.settle(available.y)
+            return available
+        }
+        return Velocity.Zero
+    }
+}
