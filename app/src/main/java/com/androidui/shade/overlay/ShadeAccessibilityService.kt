@@ -7,20 +7,24 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.res.Configuration
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.content.ContextCompat
 import com.androidui.shade.settings.ShadePrefs
+import com.androidui.shade.volume.VolumePanelController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * ユーザー補助サービス。画面の内容は読み取らず、
- * ステータスバーより上に重ねて表示できる「ユーザー補助の重ね表示」を使うためだけに利用する。
+ * ステータスバーより上に重ねて表示できる「ユーザー補助の重ね表示」と、
+ * 音量ボタンの操作の受け取りのためだけに利用する。
  */
 class ShadeAccessibilityService : AccessibilityService() {
 
     private var controller: ShadeOverlayController? = null
+    private var volume: VolumePanelController? = null
     private var prefs: ShadePrefs? = null
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
@@ -30,6 +34,7 @@ class ShadeAccessibilityService : AccessibilityService() {
     private val screenOffReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             controller?.closePanel(animate = false)
+            volume?.hide()
         }
     }
 
@@ -38,6 +43,7 @@ class ShadeAccessibilityService : AccessibilityService() {
         val shadePrefs = ShadePrefs(this)
         prefs = shadePrefs
         controller = ShadeOverlayController(this, shadePrefs).also { it.start() }
+        volume = VolumePanelController(this, shadePrefs)
         shadePrefs.registerListener(prefListener)
         ContextCompat.registerReceiver(
             this,
@@ -52,6 +58,9 @@ class ShadeAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
 
     override fun onInterrupt() = Unit
+
+    /** 音量ボタンの操作（音量パネルで処理したら true を返し、OSには渡さない） */
+    override fun onKeyEvent(event: KeyEvent): Boolean = volume?.onKeyEvent(event) ?: false
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -76,6 +85,8 @@ class ShadeAccessibilityService : AccessibilityService() {
     private fun shutdown() {
         val current = controller ?: return
         controller = null
+        volume?.stop()
+        volume = null
         prefs?.unregisterListener(prefListener)
         runCatching { unregisterReceiver(screenOffReceiver) }
         current.stop()

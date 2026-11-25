@@ -46,6 +46,7 @@ fun SetupScreen() {
     var writeSettingsEnabled by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(prefs.enabled) }
     var leftHalfOnly by remember { mutableStateOf(prefs.leftHalfOnly) }
+    var volumePanel by remember { mutableStateOf(prefs.volumePanelEnabled) }
     val serviceRunning by ShadeAccessibilityService.running.collectAsState()
 
     // 設定画面から戻ってきたときに許可の状態を確認し直す
@@ -143,6 +144,16 @@ fun SetupScreen() {
             onCheckedChange = {
                 leftHalfOnly = it
                 prefs.leftHalfOnly = it
+            },
+        )
+        SettingSwitch(
+            title = "音量パネルを置き換える",
+            description = "音量ボタンを押したときに、Android 15風の音量パネルを表示します。" +
+                "表示されない場合は、ユーザー補助を一度オフにしてからオンにし直してください。",
+            checked = volumePanel,
+            onCheckedChange = {
+                volumePanel = it
+                prefs.volumePanelEnabled = it
             },
         )
         Button(

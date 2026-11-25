@@ -20,6 +20,11 @@ class ShadePrefs(context: Context) {
         get() = prefs.getBoolean(KEY_LEFT_HALF_ONLY, true)
         set(value) = prefs.edit { putBoolean(KEY_LEFT_HALF_ONLY, value) }
 
+    /** 音量ボタンで、HyperOSの代わりにAndroid 15風の音量パネルを表示するか */
+    var volumePanelEnabled: Boolean
+        get() = prefs.getBoolean(KEY_VOLUME_PANEL, true)
+        set(value) = prefs.edit { putBoolean(KEY_VOLUME_PANEL, value) }
+
     fun registerListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) =
         prefs.registerOnSharedPreferenceChangeListener(listener)
 
@@ -30,5 +35,6 @@ class ShadePrefs(context: Context) {
         const val NAME = "shade_settings"
         const val KEY_ENABLED = "enabled"
         const val KEY_LEFT_HALF_ONLY = "left_half_only"
+        const val KEY_VOLUME_PANEL = "volume_panel"
     }
 }
