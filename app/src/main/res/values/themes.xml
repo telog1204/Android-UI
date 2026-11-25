@@ -3,4 +3,10 @@
     <style name="Theme.AndroidUI" parent="android:Theme.Material.Light.NoActionBar" />
 
     <style name="Theme.AndroidUI.Reply" parent="android:Theme.Translucent.NoTitleBar" />
+
+    <!-- ホーム画面：壁紙をそのまま背景に表示する -->
+    <style name="Theme.AndroidUI.Home" parent="android:Theme.Material.Wallpaper.NoTitleBar">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
 </resources>

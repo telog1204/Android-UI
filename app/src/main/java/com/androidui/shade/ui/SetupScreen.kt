@@ -51,6 +51,7 @@ fun SetupScreen() {
     var volumePanel by remember { mutableStateOf(prefs.volumePanelEnabled) }
     var headsUp by remember { mutableStateOf(prefs.headsUpEnabled) }
     var hiddenApps by remember { mutableStateOf(prefs.hiddenOngoingPackages) }
+    var isDefaultHome by remember { mutableStateOf(false) }
     val serviceRunning by ShadeAccessibilityService.running.collectAsState()
 
     // 設定画面から戻ってきたときに許可の状態を確認し直す
@@ -59,6 +60,7 @@ fun SetupScreen() {
         accessibilityEnabled = Permissions.isAccessibilityEnabled(context)
         writeSettingsEnabled = Permissions.canWriteSettings(context)
         hiddenApps = prefs.hiddenOngoingPackages
+        isDefaultHome = Permissions.isDefaultHome(context)
         onPauseOrDispose { }
     }
 
@@ -189,6 +191,17 @@ fun SetupScreen() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        StepCard(
+            number = 7,
+            title = "ホームアプリに設定",
+            description = "「AndroidUI ホーム」を選ぶと、ホーム画面がAndroid 15（Pixel）風になります。" +
+                "元に戻すときは、同じ画面でHyperOSのホームを選んでください。",
+            done = isDefaultHome,
+            buttonLabel = "ホームアプリを選ぶ",
+            onClick = { Permissions.openHomeSettings(context) },
+        )
 
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("隠しているアプリ", style = MaterialTheme.typography.titleMedium)
