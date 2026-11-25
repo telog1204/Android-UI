@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
 package com.androidui.shade.ui.shade
 
@@ -7,6 +7,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -29,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -70,6 +73,8 @@ fun NotificationCard(
 ) {
     val scheme = MaterialTheme.colorScheme
     var expanded by remember(notification.key) { mutableStateOf(false) }
+    // 長押しで表示する「このアプリの消せない通知を隠す」の確認
+    var showHideMenu by remember(notification.key) { mutableStateOf(false) }
     var offsetX by remember(notification.key) { mutableFloatStateOf(0f) }
     var widthPx by remember { mutableIntStateOf(1) }
     val flingThresholdPx = with(LocalDensity.current) { 1000.dp.toPx() }
@@ -79,7 +84,6 @@ fun NotificationCard(
         notification.text.length > 40
 
     Surface(
-        onClick = { actions.onOpen(notification) },
         modifier = modifier
             .fillMaxWidth()
             .onSizeChanged { widthPx = it.width.coerceAtLeast(1) }
@@ -107,8 +111,23 @@ fun NotificationCard(
         shape = shape,
         color = color,
     ) {
-        Row(
+        if (showHideMenu) {
+            HideOngoingMenu(
+                notification = notification,
+                onHide = {
+                    showHideMenu = false
+                    actions.onHideApp(notification)
+                },
+                onCancel = { showHideMenu = false },
+            )
+        } else Row(
             Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = { actions.onOpen(notification) },
+                    // 消せない通知だけ、長押しで「隠す」メニューを出す
+                    onLongClick = if (notification.clearable) null else ({ showHideMenu = true }),
+                )
                 .animateContentSize()
                 .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
             verticalAlignment = Alignment.Top,
@@ -191,6 +210,41 @@ fun NotificationCard(
                     contentScale = ContentScale.Crop,
                 )
             }
+        }
+    }
+}
+
+/** 長押しで表示する、消せない通知を隠すかの確認（Android 15の長押しメニューと同じくカードの中に表示） */
+@Composable
+private fun HideOngoingMenu(
+    notification: ShadeNotification,
+    onHide: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 4.dp),
+    ) {
+        Text(
+            text = "${notification.appName}の消せない通知を隠す",
+            style = MaterialTheme.typography.titleSmall,
+            color = scheme.onSurface,
+        )
+        Text(
+            text = "このアプリの消せない通知を、パネルに表示しないようにします。" +
+                "消せる通知は今までどおり表示します。設定画面からいつでも戻せます。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, end = 8.dp),
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(onClick = onCancel) { Text("キャンセル") }
+            TextButton(onClick = onHide) { Text("隠す") }
         }
     }
 }

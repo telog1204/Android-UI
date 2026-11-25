@@ -10,4 +10,6 @@ class ShadePanelActions(
     val onDismiss: (ShadeNotification) -> Unit,
     val onClearAll: () -> Unit,
     val onManage: () -> Unit,
+    /** このアプリの消せない通知を隠す */
+    val onHideApp: (ShadeNotification) -> Unit = {},
 )
