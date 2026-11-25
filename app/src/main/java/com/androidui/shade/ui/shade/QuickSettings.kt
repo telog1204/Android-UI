@@ -58,6 +58,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.androidui.shade.media.MediaItem
+import com.androidui.shade.media.MediaSessionsController
 import com.androidui.shade.qs.QuickSettingsController
 import com.androidui.shade.qs.TileId
 import com.androidui.shade.qs.TileState
@@ -91,6 +93,8 @@ fun FullQuickSettings(
     tiles: List<TileState>,
     brightness: Float,
     controller: QuickSettingsController,
+    mediaItems: List<MediaItem>,
+    mediaController: MediaSessionsController,
     modifier: Modifier = Modifier,
 ) {
     val pages = tiles.chunked(TILES_PER_PAGE)
@@ -128,6 +132,12 @@ fun FullQuickSettings(
             Spacer(Modifier.width(8.dp))
             FooterButton(Icons.Rounded.PowerSettingsNew, "電源メニュー", controller::openPowerMenu)
         }
+        // 再生カードはボタンの下に置き、ボタンの位置が変わらないようにする
+        MediaCarousel(
+            items = mediaItems,
+            controller = mediaController,
+            modifier = Modifier.padding(top = 16.dp),
+        )
     }
 }
 
@@ -255,7 +265,7 @@ private fun BrightnessSlider(
 }
 
 @Composable
-private fun PageIndicator(count: Int, current: Int) {
+internal fun PageIndicator(count: Int, current: Int) {
     if (count <= 1) return
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         repeat(count) { index ->
