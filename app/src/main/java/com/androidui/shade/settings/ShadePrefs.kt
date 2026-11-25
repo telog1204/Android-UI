@@ -25,6 +25,11 @@ class ShadePrefs(context: Context) {
         get() = prefs.getBoolean(KEY_VOLUME_PANEL, true)
         set(value) = prefs.edit { putBoolean(KEY_VOLUME_PANEL, value) }
 
+    /** 新しい通知をポップアップ表示するか */
+    var headsUpEnabled: Boolean
+        get() = prefs.getBoolean(KEY_HEADS_UP, true)
+        set(value) = prefs.edit { putBoolean(KEY_HEADS_UP, value) }
+
     /** クイック設定に表示するタイルの並び順（カンマ区切り。null なら初期の並び） */
     var tileOrder: String?
         get() = prefs.getString(KEY_TILE_ORDER, null)
@@ -44,5 +49,6 @@ class ShadePrefs(context: Context) {
         const val KEY_LEFT_HALF_ONLY = "left_half_only"
         const val KEY_VOLUME_PANEL = "volume_panel"
         const val KEY_TILE_ORDER = "tile_order"
+        const val KEY_HEADS_UP = "heads_up"
     }
 }

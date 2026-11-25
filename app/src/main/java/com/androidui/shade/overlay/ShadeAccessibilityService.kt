@@ -34,6 +34,7 @@ class ShadeAccessibilityService : AccessibilityService() {
     private val screenOffReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             controller?.closePanel(animate = false)
+            controller?.hideHeadsUp()
             volume?.hide()
         }
     }

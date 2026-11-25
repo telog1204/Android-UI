@@ -42,6 +42,14 @@ object Permissions {
         )
     }
 
+    /** 端末の通知設定（アプリごとの「フローティング通知」の切り替え） */
+    fun openNotificationSettings(context: Context) {
+        context.startActivitySafely(
+            Intent("android.settings.NOTIFICATION_SETTINGS"),
+            fallback = Intent(Settings.ACTION_SETTINGS),
+        )
+    }
+
     fun openAppDetails(context: Context) {
         context.startActivitySafely(appDetailsIntent(context))
     }
