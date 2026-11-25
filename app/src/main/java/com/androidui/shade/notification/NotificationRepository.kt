@@ -28,6 +28,13 @@ object NotificationRepository {
         _items.value = emptyList()
     }
 
+    /** ポップアップ表示すべき通知が届いたときに呼ばれる（ポップアップ通知の表示役が設定する） */
+    var headsUpListener: ((ShadeNotification) -> Unit)? = null
+
+    internal fun emitHeadsUp(item: ShadeNotification) {
+        headsUpListener?.invoke(item)
+    }
+
     internal fun update(list: List<ShadeNotification>) {
         _items.value = list
     }

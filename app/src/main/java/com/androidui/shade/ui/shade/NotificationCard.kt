@@ -65,6 +65,8 @@ fun NotificationCard(
     color: Color,
     actions: ShadePanelActions,
     modifier: Modifier = Modifier,
+    /** 折りたたんだ状態でもボタンを表示する（ポップアップ通知用） */
+    alwaysShowActions: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     var expanded by remember(notification.key) { mutableStateOf(false) }
@@ -152,7 +154,7 @@ fun NotificationCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (expanded && notification.actions.isNotEmpty()) {
+                if ((expanded || alwaysShowActions) && notification.actions.isNotEmpty()) {
                     Row(
                         Modifier
                             .padding(top = 10.dp)

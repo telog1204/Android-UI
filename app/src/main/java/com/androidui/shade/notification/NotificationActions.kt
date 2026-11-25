@@ -26,6 +26,10 @@ object NotificationActions {
         return send(context, pendingIntent, fillIn)
     }
 
+    /** ボタンが画面を開くものか（Android 12未満は判定できないため、開くものとして扱う） */
+    fun opensActivity(pendingIntent: PendingIntent): Boolean =
+        if (Build.VERSION.SDK_INT >= 31) pendingIntent.isActivity else true
+
     /** Android 14以降、バックグラウンドからの画面起動を許可するために必要 */
     @Suppress("DEPRECATION")
     private fun backgroundStartOptions(): Bundle? {

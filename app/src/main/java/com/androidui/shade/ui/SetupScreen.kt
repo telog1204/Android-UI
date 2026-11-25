@@ -47,6 +47,7 @@ fun SetupScreen() {
     var enabled by remember { mutableStateOf(prefs.enabled) }
     var leftHalfOnly by remember { mutableStateOf(prefs.leftHalfOnly) }
     var volumePanel by remember { mutableStateOf(prefs.volumePanelEnabled) }
+    var headsUp by remember { mutableStateOf(prefs.headsUpEnabled) }
     val serviceRunning by ShadeAccessibilityService.running.collectAsState()
 
     // 設定画面から戻ってきたときに許可の状態を確認し直す
@@ -156,6 +157,20 @@ fun SetupScreen() {
                 prefs.volumePanelEnabled = it
             },
         )
+        SettingSwitch(
+            title = "ポップアップ通知を表示する",
+            description = "新しい通知を画面上部にAndroid 15風のカードで表示します。" +
+                "HyperOSのポップアップと二重に出る場合は、通知を出すアプリごとに" +
+                "「フローティング通知」をオフにしてください。",
+            checked = headsUp,
+            onCheckedChange = {
+                headsUp = it
+                prefs.headsUpEnabled = it
+            },
+        )
+        FilledTonalButton(onClick = { Permissions.openNotificationSettings(context) }) {
+            Text("HyperOSの通知設定を開く")
+        }
         Button(
             onClick = { ShadeAccessibilityService.instance?.openPanel() },
             enabled = serviceRunning && enabled,

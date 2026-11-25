@@ -2,7 +2,6 @@ package com.androidui.shade.overlay
 
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
-import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
@@ -68,6 +67,13 @@ class ShadeOverlayController(
         collapse = { state.close() },
     )
 
+    private val headsUp = HeadsUpController(
+        service = service,
+        prefs = prefs,
+        topOffsetPx = { systemInset(top = true) },
+        isPanelOpen = { panelRoot != null },
+    )
+
     private var strip: View? = null
     private var panelRoot: FrameLayout? = null
     private var panelParams: WindowManager.LayoutParams? = null
@@ -88,7 +94,7 @@ class ShadeOverlayController(
             } else {
                 NotificationActions.send(service, action.intent)
                 // 画面を開くボタンのときだけ閉じる（その場で済む操作では開いたままにする）
-                if (opensActivity(action.intent)) state.close()
+                if (NotificationActions.opensActivity(action.intent)) state.close()
             }
         },
         onDismiss = { n -> NotificationRepository.dismiss(n.key) },
@@ -102,6 +108,7 @@ class ShadeOverlayController(
     fun start() {
         quickSettings.start()
         media.start()
+        headsUp.start()
         applySettings()
     }
 
@@ -117,9 +124,12 @@ class ShadeOverlayController(
 
     fun onConfigurationChanged() {
         closePanel(animate = false)
+        headsUp.hideNow()
         quickSettings.refresh()
         strip?.let { runCatching { windowManager.updateViewLayout(it, stripLayoutParams()) } }
     }
+
+    fun hideHeadsUp() = headsUp.hideNow()
 
     fun openPanel() {
         if (!prefs.enabled) return
@@ -140,6 +150,7 @@ class ShadeOverlayController(
     fun stop() {
         quickSettings.stop()
         media.stop()
+        headsUp.stop()
         removeStrip()
         state.snapClosed()
         removePanel()
@@ -228,6 +239,8 @@ class ShadeOverlayController(
 
     private fun showPanel() {
         if (panelRoot != null) return
+        // パネルを開いたらポップアップ通知は消す
+        headsUp.hideNow()
         val screenHeight = screenSize().second
         state.openDistancePx = screenHeight * 0.4f
         state.qsDistancePx = screenHeight * 0.3f
@@ -320,10 +333,6 @@ class ShadeOverlayController(
     }
 
     // ---- 共通 ----
-
-    /** ボタンが画面を開くものか（Android 12未満は判定できないため、閉じる側に倒す） */
-    private fun opensActivity(intent: PendingIntent): Boolean =
-        if (Build.VERSION.SDK_INT >= 31) intent.isActivity else true
 
     private fun baseParams(width: Int, height: Int, focusable: Boolean) = WindowManager.LayoutParams(
         width,

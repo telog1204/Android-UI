@@ -1,6 +1,7 @@
 package com.androidui.shade.notification
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
@@ -29,7 +30,33 @@ class ShadeNotificationListener : NotificationListenerService() {
         cache.clear()
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification?) = refresh()
+    override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
+        // 更新かどうかは、一覧を作り直す前に判定する
+        val isUpdate = sbn != null && cache.containsKey(sbn.key)
+        refresh()
+        if (sbn != null && shouldHeadsUp(sbn, rankingMap, isUpdate)) {
+            NotificationRepository.emitHeadsUp(toItem(sbn))
+        }
+    }
+
+    /** Android 15と同じ条件で、ポップアップ表示するかを決める */
+    private fun shouldHeadsUp(sbn: StatusBarNotification, rankingMap: RankingMap?, isUpdate: Boolean): Boolean {
+        val n = sbn.notification
+        if (sbn.packageName == packageName) return false
+        if (sbn.isOngoing || sbn.isGroupSummary()) return false
+        if (n.extras?.containsKey(Notification.EXTRA_MEDIA_SESSION) == true) return false
+        // 着信はHyperOSの着信画面に任せる
+        if (n.category == Notification.CATEGORY_CALL) return false
+        // 同じ通知の更新で「1回だけ知らせる」指定があれば出さない
+        if (isUpdate && n.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0) return false
+        val ranking = Ranking()
+        if (rankingMap?.getRanking(sbn.key, ranking) != true) return false
+        // 重要度が「高」以上の通知だけ
+        if (ranking.importance < NotificationManager.IMPORTANCE_HIGH) return false
+        // サイレントモードでポップアップが止められている
+        if (ranking.suppressedVisualEffects and NotificationManager.Policy.SUPPRESSED_EFFECT_PEEK != 0) return false
+        return true
+    }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) = refresh()
 
