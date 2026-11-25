@@ -2,6 +2,7 @@ package com.androidui.shade.notification
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.content.SharedPreferences
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
@@ -9,6 +10,7 @@ import android.service.notification.StatusBarNotification
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
+import com.androidui.shade.settings.ShadePrefs
 
 /** 表示中の通知を読み取り、NotificationRepository に渡す */
 class ShadeNotificationListener : NotificationListenerService() {
@@ -17,15 +19,21 @@ class ShadeNotificationListener : NotificationListenerService() {
 
     private val cache = HashMap<String, CachedItem>()
     private val appNames = HashMap<String, String>()
+    private val prefs by lazy { ShadePrefs(this) }
+
+    /** 「隠しているアプリ」が変わったら一覧を作り直す */
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> refresh() }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
         NotificationRepository.onConnected(this)
+        prefs.registerListener(prefsListener)
         refresh()
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
+        prefs.unregisterListener(prefsListener)
         NotificationRepository.onDisconnected(this)
         cache.clear()
     }
@@ -65,19 +73,30 @@ class ShadeNotificationListener : NotificationListenerService() {
     private fun refresh() {
         val active: Array<StatusBarNotification> =
             try { activeNotifications } catch (e: RuntimeException) { null } ?: return
-        val order: Array<String> =
-            try { currentRanking?.orderedKeys } catch (e: RuntimeException) { null } ?: emptyArray()
+        val rankingMap: RankingMap? = try { currentRanking } catch (e: RuntimeException) { null }
+        val order: Array<String> = rankingMap?.orderedKeys ?: emptyArray()
         val rank = HashMap<String, Int>().apply { order.forEachIndexed { index, key -> put(key, index) } }
 
         // 子の通知があるグループでは、まとめ用の通知（サマリー）を表示しない
         val groupsWithChildren = active.filterNot { it.isGroupSummary() }.mapTo(HashSet()) { it.groupKey }
-        val visible = active.filterNot { it.isGroupSummary() && it.groupKey in groupsWithChildren }
+        val hiddenPackages = prefs.hiddenOngoingPackages
+        val visible = active.filterNot { sbn ->
+            (sbn.isGroupSummary() && sbn.groupKey in groupsWithChildren) ||
+                // 消せない通知のうち、重要度「最小」のものと、隠すよう指定したアプリのものは表示しない
+                (!sbn.isClearable && (sbn.packageName in hiddenPackages || isMinImportance(sbn, rankingMap)))
+        }
 
         cache.keys.retainAll(visible.mapTo(HashSet()) { it.key })
         val items = visible
             .sortedBy { rank[it.key] ?: Int.MAX_VALUE }
             .map { toItem(it) }
         NotificationRepository.update(items)
+    }
+
+    private fun isMinImportance(sbn: StatusBarNotification, rankingMap: RankingMap?): Boolean {
+        val ranking = Ranking()
+        return rankingMap?.getRanking(sbn.key, ranking) == true &&
+            ranking.importance <= NotificationManager.IMPORTANCE_MIN
     }
 
     private fun StatusBarNotification.isGroupSummary(): Boolean =

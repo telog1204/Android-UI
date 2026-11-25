@@ -99,6 +99,7 @@ class ShadeOverlayController(
         },
         onDismiss = { n -> NotificationRepository.dismiss(n.key) },
         onClearAll = { NotificationRepository.dismissAll() },
+        onHideApp = { n -> prefs.hideOngoing(n.packageName) },
         onManage = {
             service.startActivitySafely(Intent("android.settings.NOTIFICATION_SETTINGS"), Intent(Settings.ACTION_SETTINGS))
             state.close()

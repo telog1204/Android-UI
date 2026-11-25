@@ -30,6 +30,19 @@ class ShadePrefs(context: Context) {
         get() = prefs.getBoolean(KEY_HEADS_UP, true)
         set(value) = prefs.edit { putBoolean(KEY_HEADS_UP, value) }
 
+    /** 消せない通知をパネルに表示しないアプリ（パッケージ名） */
+    var hiddenOngoingPackages: Set<String>
+        get() = prefs.getStringSet(KEY_HIDDEN_ONGOING, null)?.toSet() ?: emptySet()
+        set(value) = prefs.edit { putStringSet(KEY_HIDDEN_ONGOING, value.toSet()) }
+
+    fun hideOngoing(packageName: String) {
+        hiddenOngoingPackages = hiddenOngoingPackages + packageName
+    }
+
+    fun showOngoing(packageName: String) {
+        hiddenOngoingPackages = hiddenOngoingPackages - packageName
+    }
+
     /** クイック設定に表示するタイルの並び順（カンマ区切り。null なら初期の並び） */
     var tileOrder: String?
         get() = prefs.getString(KEY_TILE_ORDER, null)
@@ -50,5 +63,6 @@ class ShadePrefs(context: Context) {
         const val KEY_VOLUME_PANEL = "volume_panel"
         const val KEY_TILE_ORDER = "tile_order"
         const val KEY_HEADS_UP = "heads_up"
+        const val KEY_HIDDEN_ONGOING = "hidden_ongoing_packages"
     }
 }

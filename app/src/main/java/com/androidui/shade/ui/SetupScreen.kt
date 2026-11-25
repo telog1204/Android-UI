@@ -1,5 +1,6 @@
 package com.androidui.shade.ui
 
+import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,6 +50,7 @@ fun SetupScreen() {
     var leftHalfOnly by remember { mutableStateOf(prefs.leftHalfOnly) }
     var volumePanel by remember { mutableStateOf(prefs.volumePanelEnabled) }
     var headsUp by remember { mutableStateOf(prefs.headsUpEnabled) }
+    var hiddenApps by remember { mutableStateOf(prefs.hiddenOngoingPackages) }
     val serviceRunning by ShadeAccessibilityService.running.collectAsState()
 
     // 設定画面から戻ってきたときに許可の状態を確認し直す
@@ -55,6 +58,7 @@ fun SetupScreen() {
         listenerEnabled = Permissions.isNotificationListenerEnabled(context)
         accessibilityEnabled = Permissions.isAccessibilityEnabled(context)
         writeSettingsEnabled = Permissions.canWriteSettings(context)
+        hiddenApps = prefs.hiddenOngoingPackages
         onPauseOrDispose { }
     }
 
@@ -185,8 +189,44 @@ fun SetupScreen() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        Text("隠しているアプリ", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "パネルで消せない通知のカードを長押しすると、そのアプリの消せない通知を隠せます。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (hiddenApps.isEmpty()) {
+            Text(
+                "隠しているアプリはありません",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        hiddenApps.sorted().forEach { packageName ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = appLabel(context, packageName),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = {
+                    prefs.showOngoing(packageName)
+                    hiddenApps = prefs.hiddenOngoingPackages
+                }) {
+                    Text("表示に戻す")
+                }
+            }
+        }
     }
 }
+
+/** パッケージ名からアプリ名を求める（分からなければパッケージ名のまま） */
+private fun appLabel(context: Context, packageName: String): String = runCatching {
+    val pm = context.packageManager
+    pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+}.getOrDefault(packageName)
 
 @Composable
 private fun StepCard(
