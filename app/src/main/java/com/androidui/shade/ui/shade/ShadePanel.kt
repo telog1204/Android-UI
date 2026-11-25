@@ -75,6 +75,7 @@ fun ShadePanel(
     val items by NotificationRepository.items.collectAsState()
     val connected by NotificationRepository.connected.collectAsState()
     val tiles by quickSettings.tiles.collectAsState()
+    val hiddenTiles by quickSettings.hiddenTiles.collectAsState()
     val brightness by quickSettings.brightness.collectAsState()
     val mediaItems by media.items.collectAsState()
     // 再生カードを出しているアプリの再生用の通知は、二重表示を防ぐため一覧から外す
@@ -102,7 +103,8 @@ fun ShadePanel(
                 onDragStarted = { position -> router.onStart(position.y) },
                 onDragStopped = { velocity -> router.onStop(velocity) },
             )
-            .pointerInput(state) { detectTapGestures(onTap = { state.close() }) },
+            // 何もない場所のタップで閉じる（タイルの編集中は閉じない）
+            .pointerInput(state) { detectTapGestures(onTap = { if (!state.editingTiles) state.close() }) },
     ) {
         Column(
             Modifier
@@ -183,21 +185,33 @@ fun ShadePanel(
                 }
                 // 2段目：全画面のクイック設定
                 if (showFullQs) {
-                    FullQuickSettings(
-                        tiles = tiles,
-                        brightness = brightness,
-                        controller = quickSettings,
-                        mediaItems = mediaItems,
-                        mediaController = media,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                alpha = state.qsExpansion
-                                translationY = -(1f - state.qsExpansion) * state.qsDistancePx * 0.5f
-                            }
-                            // 下にある通知に触れないようにする
-                            .pointerInput(Unit) {},
-                    )
+                    val fullQsModifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = state.qsExpansion
+                            translationY = -(1f - state.qsExpansion) * state.qsDistancePx * 0.5f
+                        }
+                        // 下にある通知に触れないようにする
+                        .pointerInput(Unit) {}
+                    if (state.editingTiles) {
+                        TileEditor(
+                            tiles = tiles,
+                            hiddenTiles = hiddenTiles,
+                            controller = quickSettings,
+                            onDone = { state.editingTiles = false },
+                            modifier = fullQsModifier,
+                        )
+                    } else {
+                        FullQuickSettings(
+                            tiles = tiles,
+                            brightness = brightness,
+                            controller = quickSettings,
+                            mediaItems = mediaItems,
+                            mediaController = media,
+                            onEdit = { state.editingTiles = true },
+                            modifier = fullQsModifier,
+                        )
+                    }
                 }
             }
             DragHandle()
@@ -311,6 +325,8 @@ private class PanelDragRouter(private val state: ShadeState) {
     }
 
     fun onDelta(delta: Float) {
+        // タイルの編集中は、パネルの開閉やクイック設定の展開をしない
+        if (state.editingTiles) return
         if (mode == Mode.UNDECIDED) {
             mode = when {
                 state.qsExpansion > 0f -> Mode.QS
@@ -340,7 +356,7 @@ private class PanelDragRouter(private val state: ShadeState) {
 private class ShadeNestedScrollConnection(private val state: ShadeState) : NestedScrollConnection {
 
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-        if (source != NestedScrollSource.UserInput) return Offset.Zero
+        if (source != NestedScrollSource.UserInput || state.editingTiles) return Offset.Zero
         if (state.qsExpansion > 0f && state.qsExpansion < 1f) {
             state.qsDragBy(available.y)
             return Offset(0f, available.y)
@@ -353,7 +369,7 @@ private class ShadeNestedScrollConnection(private val state: ShadeState) : Neste
     }
 
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-        if (source != NestedScrollSource.UserInput) return Offset.Zero
+        if (source != NestedScrollSource.UserInput || state.editingTiles) return Offset.Zero
         if (available.y < 0f) {
             state.dragBy(available.y)
             return Offset(0f, available.y)
@@ -366,6 +382,7 @@ private class ShadeNestedScrollConnection(private val state: ShadeState) : Neste
     }
 
     override suspend fun onPreFling(available: Velocity): Velocity {
+        if (state.editingTiles) return Velocity.Zero
         if (state.qsExpansion > 0f && state.qsExpansion < 1f) {
             state.qsSettle(available.y)
             return available

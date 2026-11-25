@@ -58,6 +58,7 @@ class ShadeOverlayController(
 
     private val quickSettings = QuickSettingsController(
         service = service,
+        prefs = prefs,
         collapse = { state.close() },
         closeImmediately = { closePanel(animate = false) },
     )
