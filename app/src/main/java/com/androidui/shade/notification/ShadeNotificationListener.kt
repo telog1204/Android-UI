@@ -83,6 +83,7 @@ class ShadeNotificationListener : NotificationListenerService() {
             autoCancel = n.flags and Notification.FLAG_AUTO_CANCEL != 0,
             clearable = sbn.isClearable,
             actions = n.actions.orEmpty().mapNotNull { toAction(it) },
+            isMedia = extras.containsKey(Notification.EXTRA_MEDIA_SESSION),
         )
         cache[sbn.key] = CachedItem(sbn.postTime, item)
         return item

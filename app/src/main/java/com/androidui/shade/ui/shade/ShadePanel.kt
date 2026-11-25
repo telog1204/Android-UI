@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.androidui.shade.media.MediaSessionsController
 import com.androidui.shade.notification.NotificationRepository
 import com.androidui.shade.overlay.ShadeState
 import com.androidui.shade.qs.QuickSettingsController
@@ -67,6 +68,7 @@ fun ShadePanel(
     state: ShadeState,
     actions: ShadePanelActions,
     quickSettings: QuickSettingsController,
+    media: MediaSessionsController,
     topInset: Dp,
     bottomInset: Dp,
 ) {
@@ -74,6 +76,12 @@ fun ShadePanel(
     val connected by NotificationRepository.connected.collectAsState()
     val tiles by quickSettings.tiles.collectAsState()
     val brightness by quickSettings.brightness.collectAsState()
+    val mediaItems by media.items.collectAsState()
+    // 再生カードを出しているアプリの再生用の通知は、二重表示を防ぐため一覧から外す
+    val visibleItems = remember(items, mediaItems) {
+        val mediaPackages = mediaItems.mapTo(HashSet()) { it.packageName }
+        items.filterNot { it.isMedia && it.packageName in mediaPackages }
+    }
     val scheme = MaterialTheme.colorScheme
     val dark = isSystemInDarkTheme()
     val scrimColor = scheme.surfaceContainer
@@ -135,17 +143,28 @@ fun ShadePanel(
                         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
+                        if (mediaItems.isNotEmpty()) {
+                            item(key = "media") {
+                                MediaCarousel(
+                                    items = mediaItems,
+                                    controller = media,
+                                    modifier = Modifier.padding(bottom = 12.dp),
+                                )
+                            }
+                        }
                         when {
                             !connected -> item(key = "not_connected") {
                                 Message("通知へのアクセスが許可されていません。\nアプリを開いて設定してください。")
                             }
 
-                            items.isEmpty() -> item(key = "empty") { Message("通知はありません") }
+                            visibleItems.isEmpty() && mediaItems.isEmpty() -> item(key = "empty") {
+                                Message("通知はありません")
+                            }
                         }
-                        itemsIndexed(items, key = { _, n -> n.key }) { index, notification ->
+                        itemsIndexed(visibleItems, key = { _, n -> n.key }) { index, notification ->
                             NotificationCard(
                                 notification = notification,
-                                shape = stackShape(index, items.size),
+                                shape = stackShape(index, visibleItems.size),
                                 color = cardColor,
                                 actions = actions,
                                 modifier = Modifier.animateItem(),
@@ -154,7 +173,7 @@ fun ShadePanel(
                         if (connected) {
                             item(key = "footer") {
                                 ShadeFooter(
-                                    showClearAll = items.any { it.clearable },
+                                    showClearAll = visibleItems.any { it.clearable },
                                     color = cardColor,
                                     actions = actions,
                                 )
@@ -168,6 +187,8 @@ fun ShadePanel(
                         tiles = tiles,
                         brightness = brightness,
                         controller = quickSettings,
+                        mediaItems = mediaItems,
+                        mediaController = media,
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {

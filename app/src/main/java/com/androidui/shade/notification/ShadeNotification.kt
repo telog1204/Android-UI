@@ -20,6 +20,8 @@ data class ShadeNotification(
     val autoCancel: Boolean,
     val clearable: Boolean,
     val actions: List<ShadeAction>,
+    /** 音楽アプリなどの再生用の通知か */
+    val isMedia: Boolean,
 )
 
 /** 通知に付いているボタン（返信など） */

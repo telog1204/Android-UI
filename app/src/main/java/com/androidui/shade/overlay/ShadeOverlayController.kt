@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.androidui.shade.media.MediaSessionsController
 import com.androidui.shade.notification.NotificationActions
 import com.androidui.shade.notification.NotificationRepository
 import com.androidui.shade.qs.QuickSettingsController
@@ -61,6 +62,11 @@ class ShadeOverlayController(
         closeImmediately = { closePanel(animate = false) },
     )
 
+    private val media = MediaSessionsController(
+        context = service,
+        collapse = { state.close() },
+    )
+
     private var strip: View? = null
     private var panelRoot: FrameLayout? = null
     private var panelParams: WindowManager.LayoutParams? = null
@@ -94,6 +100,7 @@ class ShadeOverlayController(
 
     fun start() {
         quickSettings.start()
+        media.start()
         applySettings()
     }
 
@@ -131,6 +138,7 @@ class ShadeOverlayController(
 
     fun stop() {
         quickSettings.stop()
+        media.stop()
         removeStrip()
         state.snapClosed()
         removePanel()
@@ -223,6 +231,7 @@ class ShadeOverlayController(
         state.openDistancePx = screenHeight * 0.4f
         state.qsDistancePx = screenHeight * 0.3f
         quickSettings.onPanelShown()
+        media.onPanelShown()
         val topInset = (systemInset(top = true) / density).dp
         val bottomInset = (systemInset(top = false) / density).dp
 
@@ -247,6 +256,7 @@ class ShadeOverlayController(
                             state = state,
                             actions = panelActions,
                             quickSettings = quickSettings,
+                            media = media,
                             topInset = topInset,
                             bottomInset = bottomInset,
                         )
