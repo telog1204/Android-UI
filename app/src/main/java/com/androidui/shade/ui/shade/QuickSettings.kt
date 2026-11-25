@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.LocationOn
@@ -65,7 +66,7 @@ import com.androidui.shade.qs.TileId
 import com.androidui.shade.qs.TileState
 
 private val TileHeight = 72.dp
-private val TileSpacing = 8.dp
+internal val TileSpacing = 8.dp
 private const val TILES_PER_PAGE = 8
 private const val ROWS_PER_PAGE = TILES_PER_PAGE / 2
 
@@ -95,6 +96,7 @@ fun FullQuickSettings(
     controller: QuickSettingsController,
     mediaItems: List<MediaItem>,
     mediaController: MediaSessionsController,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val pages = tiles.chunked(TILES_PER_PAGE)
@@ -128,6 +130,8 @@ fun FullQuickSettings(
         ) {
             PageIndicator(count = pages.size, current = pagerState.currentPage)
             Spacer(Modifier.weight(1f))
+            FooterButton(Icons.Rounded.Edit, "編集", onEdit)
+            Spacer(Modifier.width(8.dp))
             FooterButton(Icons.Rounded.Settings, "設定", controller::openSettings)
             Spacer(Modifier.width(8.dp))
             FooterButton(Icons.Rounded.PowerSettingsNew, "電源メニュー", controller::openPowerMenu)
@@ -298,7 +302,7 @@ private fun FooterButton(icon: ImageVector, description: String, onClick: () -> 
     }
 }
 
-private fun tileIcon(id: TileId): ImageVector = when (id) {
+internal fun tileIcon(id: TileId): ImageVector = when (id) {
     TileId.INTERNET -> Icons.Rounded.Wifi
     TileId.BLUETOOTH -> Icons.Rounded.Bluetooth
     TileId.FLASHLIGHT -> Icons.Rounded.FlashlightOn

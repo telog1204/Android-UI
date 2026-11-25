@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -25,6 +26,9 @@ class ShadeState(
 
     var qsExpansion by mutableFloatStateOf(0f)
         private set
+
+    /** クイック設定のタイルを編集中か */
+    var editingTiles by mutableStateOf(false)
 
     /** パネルが全開になるまでに指を動かす距離 */
     var openDistancePx by mutableFloatStateOf(1f)
@@ -68,11 +72,16 @@ class ShadeState(
         qsAnimationJob?.cancel()
         expansion = 0f
         qsExpansion = 0f
+        editingTiles = false
     }
 
-    /** 戻る操作：クイック設定が広がっていれば戻し、そうでなければパネルを閉じる */
+    /** 戻る操作：編集中なら編集を終え、クイック設定が広がっていれば戻し、そうでなければパネルを閉じる */
     fun handleBack() {
-        if (qsExpansion > 0f) collapseQs() else close()
+        when {
+            editingTiles -> editingTiles = false
+            qsExpansion > 0f -> collapseQs()
+            else -> close()
+        }
     }
 
     // ---- クイック設定 ----
@@ -111,6 +120,7 @@ class ShadeState(
             if (target == 0f) {
                 qsAnimationJob?.cancel()
                 qsExpansion = 0f
+                editingTiles = false
                 onClosed()
             }
         }

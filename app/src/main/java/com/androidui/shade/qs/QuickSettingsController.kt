@@ -27,6 +27,7 @@ import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.androidui.shade.notification.NotificationRepository
 import com.androidui.shade.settings.Permissions
+import com.androidui.shade.settings.ShadePrefs
 import com.androidui.shade.util.startActivitySafely
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +39,7 @@ import kotlin.math.roundToInt
  */
 class QuickSettingsController(
     private val service: AccessibilityService,
+    private val prefs: ShadePrefs,
     /** パネルをアニメーションで閉じる */
     private val collapse: () -> Unit,
     /** パネルをすぐに閉じる（スクリーンショットなどの前に使う） */
@@ -64,8 +66,13 @@ class QuickSettingsController(
     private var lastWrittenBrightness = -1
     private var writeSettingsRequested = false
 
+    /** 表示中のタイル（保存した並び順） */
     private val _tiles = MutableStateFlow<List<TileState>>(emptyList())
     val tiles: StateFlow<List<TileState>> = _tiles.asStateFlow()
+
+    /** 非表示にしたタイル（編集画面の「追加できるタイル」） */
+    private val _hiddenTiles = MutableStateFlow<List<TileState>>(emptyList())
+    val hiddenTiles: StateFlow<List<TileState>> = _hiddenTiles.asStateFlow()
 
     /** 明るさスライダーの位置（0〜1） */
     private val _brightness = MutableStateFlow(0f)
@@ -151,7 +158,7 @@ class QuickSettingsController(
     }
 
     fun refresh() {
-        _tiles.value = buildList {
+        val available = buildList {
             add(internetTile())
             add(onOffTile(TileId.BLUETOOTH, "Bluetooth", isBluetoothOn()))
             if (torchCameraId != null) add(onOffTile(TileId.FLASHLIGHT, "ライト", torchOn))
@@ -164,8 +171,33 @@ class QuickSettingsController(
             if (nfc != null) add(onOffTile(TileId.NFC, "NFC", runCatching { nfc.isEnabled }.getOrDefault(false)))
             add(TileState(TileId.SCREENSHOT, "スクリーンショット", null, false))
             add(TileState(TileId.LOCK, "画面ロック", null, false))
-        }
+        }.associateBy { it.id }
+        val order = savedOrder() ?: available.keys.toList()
+        val shown = order.mapNotNull { available[it] }
+        _tiles.value = shown
+        _hiddenTiles.value = available.values.filter { it.id !in order }
         _brightness.value = readBrightnessSlider()
+    }
+
+    // ---- 並び順の編集 ----
+
+    /** 表示するタイルと並び順を保存する */
+    fun saveOrder(ids: List<TileId>) {
+        prefs.tileOrder = ids.distinct().joinToString(",") { it.name }
+        refresh()
+    }
+
+    /** 初期の並びに戻す */
+    fun resetOrder() {
+        prefs.tileOrder = null
+        refresh()
+    }
+
+    private fun savedOrder(): List<TileId>? {
+        val saved = prefs.tileOrder ?: return null
+        return saved.split(',').filter { it.isNotBlank() }.mapNotNull { name ->
+            TileId.entries.firstOrNull { it.name == name }
+        }
     }
 
     // ---- タイルの操作 ----
