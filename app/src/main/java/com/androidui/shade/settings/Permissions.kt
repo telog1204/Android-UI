@@ -3,6 +3,7 @@ package com.androidui.shade.settings
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
@@ -47,6 +48,23 @@ object Permissions {
         context.startActivitySafely(
             Intent("android.settings.NOTIFICATION_SETTINGS"),
             fallback = Intent(Settings.ACTION_SETTINGS),
+        )
+    }
+
+    /** このアプリがホームアプリに選ばれているか */
+    fun isDefaultHome(context: Context): Boolean {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val info = runCatching {
+            context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        }.getOrNull()
+        return info?.activityInfo?.packageName == context.packageName
+    }
+
+    /** 「デフォルトのホームアプリ」を選ぶ画面 */
+    fun openHomeSettings(context: Context) {
+        context.startActivitySafely(
+            Intent(Settings.ACTION_HOME_SETTINGS),
+            fallback = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS),
         )
     }
 
