@@ -2,6 +2,7 @@ package com.androidui.shade.overlay
 
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
+import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
@@ -27,11 +28,13 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.androidui.shade.notification.NotificationActions
 import com.androidui.shade.notification.NotificationRepository
+import com.androidui.shade.qs.QuickSettingsController
 import com.androidui.shade.reply.ReplyActivity
 import com.androidui.shade.settings.ShadePrefs
 import com.androidui.shade.ui.shade.ShadePanel
 import com.androidui.shade.ui.shade.ShadePanelActions
 import com.androidui.shade.ui.theme.ShadeTheme
+import com.androidui.shade.util.startActivitySafely
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -52,6 +55,12 @@ class ShadeOverlayController(
 
     val state = ShadeState(scope, flingThresholdPx = 600f * density, onClosed = { removePanel() })
 
+    private val quickSettings = QuickSettingsController(
+        service = service,
+        collapse = { state.close() },
+        closeImmediately = { closePanel(animate = false) },
+    )
+
     private var strip: View? = null
     private var panelRoot: FrameLayout? = null
     private var panelParams: WindowManager.LayoutParams? = null
@@ -66,19 +75,27 @@ class ShadeOverlayController(
         },
         onAction = { n, action ->
             if (action.remoteInputs.isNotEmpty()) {
-                startActivitySafely(ReplyActivity.createIntent(service, action, n.title.ifEmpty { n.appName }))
+                // 返信はキーボードがパネルの裏に隠れるため、パネルを閉じて入力画面を開く
+                service.startActivitySafely(ReplyActivity.createIntent(service, action, n.title.ifEmpty { n.appName }))
+                state.close()
             } else {
                 NotificationActions.send(service, action.intent)
+                // 画面を開くボタンのときだけ閉じる（その場で済む操作では開いたままにする）
+                if (opensActivity(action.intent)) state.close()
             }
-            state.close()
         },
         onDismiss = { n -> NotificationRepository.dismiss(n.key) },
         onClearAll = { NotificationRepository.dismissAll() },
         onManage = {
-            startActivitySafely(Intent("android.settings.NOTIFICATION_SETTINGS"), fallback = Intent(Settings.ACTION_SETTINGS))
+            service.startActivitySafely(Intent("android.settings.NOTIFICATION_SETTINGS"), Intent(Settings.ACTION_SETTINGS))
             state.close()
         },
     )
+
+    fun start() {
+        quickSettings.start()
+        applySettings()
+    }
 
     /** 設定に合わせて帯を表示・更新・削除する */
     fun applySettings() {
@@ -92,6 +109,7 @@ class ShadeOverlayController(
 
     fun onConfigurationChanged() {
         closePanel(animate = false)
+        quickSettings.refresh()
         strip?.let { runCatching { windowManager.updateViewLayout(it, stripLayoutParams()) } }
     }
 
@@ -112,6 +130,7 @@ class ShadeOverlayController(
     }
 
     fun stop() {
+        quickSettings.stop()
         removeStrip()
         state.snapClosed()
         removePanel()
@@ -200,7 +219,10 @@ class ShadeOverlayController(
 
     private fun showPanel() {
         if (panelRoot != null) return
-        state.openDistancePx = screenSize().second * 0.4f
+        val screenHeight = screenSize().second
+        state.openDistancePx = screenHeight * 0.4f
+        state.qsDistancePx = screenHeight * 0.3f
+        quickSettings.onPanelShown()
         val topInset = (systemInset(top = true) / density).dp
         val bottomInset = (systemInset(top = false) / density).dp
 
@@ -208,7 +230,7 @@ class ShadeOverlayController(
         val root = object : FrameLayout(service) {
             override fun dispatchKeyEvent(event: KeyEvent): Boolean {
                 if (event.keyCode == KeyEvent.KEYCODE_BACK) {
-                    if (event.action == KeyEvent.ACTION_UP) state.close()
+                    if (event.action == KeyEvent.ACTION_UP) state.handleBack()
                     return true
                 }
                 return super.dispatchKeyEvent(event)
@@ -224,6 +246,7 @@ class ShadeOverlayController(
                         ShadePanel(
                             state = state,
                             actions = panelActions,
+                            quickSettings = quickSettings,
                             topInset = topInset,
                             bottomInset = bottomInset,
                         )
@@ -287,6 +310,10 @@ class ShadeOverlayController(
 
     // ---- 共通 ----
 
+    /** ボタンが画面を開くものか（Android 12未満は判定できないため、閉じる側に倒す） */
+    private fun opensActivity(intent: PendingIntent): Boolean =
+        if (Build.VERSION.SDK_INT >= 31) intent.isActivity else true
+
     private fun baseParams(width: Int, height: Int, focusable: Boolean) = WindowManager.LayoutParams(
         width,
         height,
@@ -336,16 +363,6 @@ class ShadeOverlayController(
             id > 0 -> service.resources.getDimensionPixelSize(id)
             top -> (24 * density).toInt()
             else -> 0
-        }
-    }
-
-    private fun startActivitySafely(intent: Intent, fallback: Intent? = null) {
-        try {
-            service.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (e: Exception) {
-            if (fallback != null) {
-                runCatching { service.startActivity(fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            }
         }
     }
 }

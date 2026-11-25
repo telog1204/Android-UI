@@ -43,6 +43,7 @@ fun SetupScreen() {
     val prefs = remember { ShadePrefs(context) }
     var listenerEnabled by remember { mutableStateOf(false) }
     var accessibilityEnabled by remember { mutableStateOf(false) }
+    var writeSettingsEnabled by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(prefs.enabled) }
     var leftHalfOnly by remember { mutableStateOf(prefs.leftHalfOnly) }
     val serviceRunning by ShadeAccessibilityService.running.collectAsState()
@@ -51,6 +52,7 @@ fun SetupScreen() {
     LifecycleResumeEffect(Unit) {
         listenerEnabled = Permissions.isNotificationListenerEnabled(context)
         accessibilityEnabled = Permissions.isAccessibilityEnabled(context)
+        writeSettingsEnabled = Permissions.canWriteSettings(context)
         onPauseOrDispose { }
     }
 
@@ -100,6 +102,14 @@ fun SetupScreen() {
         )
         StepCard(
             number = 4,
+            title = "システム設定の変更",
+            description = "「AndroidUI 通知パネル」を許可してください。明るさスライダーと自動回転の切り替えに使います。",
+            done = writeSettingsEnabled,
+            buttonLabel = "設定を開く",
+            onClick = { Permissions.openWriteSettings(context) },
+        )
+        StepCard(
+            number = 5,
             title = "自動起動を許可（HyperOS）",
             description = "一覧で「AndroidUI 通知パネル」をオンにしてください。HyperOSにアプリを停止されないようにします。",
             done = null,
@@ -107,7 +117,7 @@ fun SetupScreen() {
             onClick = { Permissions.openAutoStart(context) },
         )
         StepCard(
-            number = 5,
+            number = 6,
             title = "バッテリー制限を解除（HyperOS）",
             description = "アプリ情報の「バッテリーセーバー」を「制限なし」にしてください。",
             done = null,
